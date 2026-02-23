@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" >
+    <title>Atomic Orbital Modeller </title>
+    <script src="https://unpkg.com/gl-matrix@2.8.1/dist/gl-matrix-min.js"></script>
+    <!---<script src="webgl-code.js" type="module"></script>--->
+    <style>
+	body{
+		margin:3%;
+		height:100%;
+	}
+	.flex-container{ 
+		display:flex;
+		padding:1%;
+		height:100vh;
+	}
+	.flex-child{
+		flex:1;
+		display:flex;
+		flex-direction:column;
+	}
+	#gl-canvas{
+		width:800px;
+		height:800px;
+		border:1px solid black;
+	}
+	.dropdown{
+		display:flex;
+	}
+	.dropdownContent{
+		display:none;
+	}
+	.content{
+		flex:1;
+		display:flex;
+		flex-direction:column;
+	}
+	.content > div{
+		flex:1;
+		display:none;
+	}
+	.content div.active{
+		display:flex;
+	}
+	.show { display:block;}
+
+	.options{ 
+		list-style:none;
+		display:flex;
+		gap:20px;
+	}
+
+	iframe {
+		width:100%; 
+		height:100%;
+		border:none;
+	}
+	.constants li{
+		font-size:1.2em;
+	 }
+	 #view{
+		 flex-direction:column;
+	 }
+	 #identify{
+		 flex-direction:column;
+	 }
+	 .gl-navbar{
+		 display:flex;
+		 flex-direction:row;
+		 justify-content:space-between;
+		 width:800px;
+	 }
+	 .gl-navbar > ul{
+		list-style:none;
+		display:flex;
+		gap:15px;
+	 }
+	 #cartesianName{font-weight:bold;}
+
+	 .hide{display:none;}
+
+	 #mainmenu { font-size:2em;
+		 background-color:white;
+		 border:none;
+		 margin-bottom:1em;
+	 }
+	 #quizContent{
+		 display:flex;
+		 flex-direction:column;
+		 gap:20px;
+		 font-size:1.1em;
+	 }
+    </style>
+  </head>
+
+  <body>
+	<div> <h1> Hydrogen-like Atomic Orbital Simulator </h1> </div>
+	<div class = "flex-container">
+		<div class = "flex-child">
+		    <div class="gl-navbar">
+			    <p id = "cartesianName"> 2p_z </p>
+			    <ul class = "constants">
+				    <li> <b>n</b> = <span id="n">2</span> </li>
+				    <li> <b>l</b> = <span id="l">1</span> </li> <!--- could change to ℓ but looks weird --->
+				    <li> <b>m</b> = <span id="m">0</span> </li>
+			    </ul>
+		    </div>
+  	 	   <canvas id="gl-canvas" width="640" height="480"></canvas>
+		   <div class ="gl-navbar">
+			   <ul class = "selectview">
+				   <li> <b> Select view: </b> </li> <!--make sure not selectable-->
+				   <li> Volume rendering </li>
+				   <li> Cut plane
+					   <select id ="planeSelect">
+						   <option value="0"> X </option>
+						   <option value="1"> Y </option>
+						   <option value="2"> Z </option>
+					   </select>
+				   </li> 
+				   <li> Iso-surface </li>
+
+			   </ul>
+		   </div>
+            </div>
+	    <div class = "flex-child">
+		    <div class = "dropdown">
+			    <button onclick="menu('menuOptions')" id="mainmenu"> ☰ </button>
+
+			    <div id="menuOptions" class="dropdownContent">
+				    <ul class="options">
+				    	<li data-target="view"> View orbital </li>
+				    	<li data-target="identify"> Identify orbitals </li>
+				    	<li data-target="explain"> Explain orbitals </li>
+				    	<li data-target="settings"> Settings </li>
+				    </ul>
+		   	    </div>
+		    </div>
+
+		    <div class = "content">
+			    <div id="view" class="active"> 
+				    <h2> Choose an orbital </h2>
+				    <p> An <b>atomic orbital</b> is a function describing the location and wave-like behavior of an electron in an atom. This function describes an electron's charge distribution around the atom's nucleus, and can be used to calculate the probability of finding an electron in a specific region around the nucleus.[2]
+				    </p>
+
+				    <p> Each orbital in an atom is characterized by a set of values of three quantum numbers n, ℓ, and mℓ, which respectively correspond to an electron's energy, its orbital angular momentum, and its orbital angular momentum projected along a chosen axis (magnetic quantum number). The orbitals with a well-defined magnetic quantum number are generally complex-valued. Real-valued orbitals can be formed as linear combinations of mℓ and −mℓ orbitals, and are often labeled using associated harmonic polynomials (e.g., xy, x2 − y2) which describe their angular structure.
+				    </p>
+
+				    <select id="orbitalSelect"> </select>
+		            </div>
+
+			    <div id="identify"> 
+				    <!--- basically, randomly generate an orbital, visualise it, put it in a list with 3 others and get user to select the right one--->
+				    <!--- either hide the n,l,m or do smth else--->
+				<h2> Which  orbital is dipslayed on the left?</h2>
+				<div id="quizContent">
+				</div>
+				<p id = "quizResult"> </p>
+				<p> Your score is <span id ="quizScore"> </span> </p>
+				<button onclick="quiz()"> New question </button>
+
+		            </div>
+
+			    <div id="explain"> 
+				    <iframe src="https://en.wikipedia.org/wiki/Atomic_orbital"> </iframe>
+		            </div>
+
+			    <div id="settings"> 
+		            </div>
+
+    	   	    </div>
+    	   </div>
+    </div>
+  </body>
+
+  <!--website controls-->
+  <script>
+	  //add something to stop running if idling
+	  let score = 0;
+	  const orbitals = [
+		  { n: 1, l: 0, m:  0, name: "1s" },
+
+		  { n: 2, l: 0, m:  0, name: "2s" },
+                  { n: 2, l: 1, m: -1, name: "2p_x" },
+                  { n: 2, l: 1, m:  0, name: "2p_z" },
+                  { n: 2, l: 1, m:  1, name: "2p_y" },
+
+                  { n: 3, l: 0, m:  0, name: "3s" },
+                  { n: 3, l: 1, m: -1, name: "3p_x" },
+                  { n: 3, l: 1, m:  0, name: "3p_z" },
+                  { n: 3, l: 1, m:  1, name: "3p_y" },
+                  { n: 3, l: 2, m: -2, name: "3d_xy" },
+                  { n: 3, l: 2, m: -1, name: "3d_xz" },
+                  { n: 3, l: 2, m:  0, name: "3d_z²" },
+                  { n: 3, l: 2, m:  1, name: "3d_yz" },
+                  { n: 3, l: 2, m:  2, name: "3d_x²-y²" },
+
+                  { n: 4, l: 0, m:  0, name: "4s" },
+                  { n: 4, l: 1, m: -1, name: "4p_x" },
+                  { n: 4, l: 1, m:  0, name: "4p_z" },
+                  { n: 4, l: 1, m:  1, name: "4p_y" },
+                  { n: 4, l: 2, m: -2, name: "4d_xy" },
+                  { n: 4, l: 2, m: -1, name: "4d_xz" },
+                  { n: 4, l: 2, m:  0, name: "4d_z²" },
+                  { n: 4, l: 2, m:  1, name: "4d_yz" },
+                  { n: 4, l: 2, m:  2, name: "4d_x²-y²" },
+                
+                  { n: 4, l: 3, m: -3, name: "4f_x(x²-3y²)" },
+                  { n: 4, l: 3, m: -2, name: "4f_xyz" },
+                  { n: 4, l: 3, m: -1, name: "4f_xz²" },
+                  { n: 4, l: 3, m:  0, name: "4f_z³" },
+                  { n: 4, l: 3, m:  1, name: "4f_yz²" },
+                  { n: 4, l: 3, m:  2, name: "4f_z(x²-y²)" },
+                  { n: 4, l: 3, m:  3, name: "4f_y(3x²-y²)" }
+                ];
+	  function quiz() {
+		  //toggle n,l,m  hidden
+		  //const opts = Object.values(orbitals).slice(0,-7); //or however many you want to show
+		  const  quizContent =  document.getElementById("quizContent");
+		  quizContent.innerHTML = '';
+		  const opts = orbitals.filter(o => o.n <= 3);
+		  let temps = opts;
+
+  		  let a = [...Array(4)];
+
+		  for (var r in a) {
+			  var x = Math.floor(Math.random()*temps.length);
+			  a[r] = temps[x];
+			  temps.splice(x,1);
+		  }
+
+  		  const right = a[0];
+		  updateWebGLUniforms(right["n"],right["l"],right["m"]);
+
+  		  for (var i = a.length - 1; i > 0; i--) { //shuffle
+  		  	var j = Math.floor(Math.random() * (i + 1));
+  		  	var temp = a[i];
+  		  	a[i] = a[j];
+  		  	a[j] = temp;
+		  }
+		  for  (let [i,x] of a.entries()) {
+			  let label = document.createElement("label");
+			  label.innerText = x["name"];
+			  let input = document.createElement("input");
+			  input.type = "radio";
+			  input.value = i;
+			  input.name = "quiz";
+			  label.appendChild(input);
+			  quizContent.appendChild(label);
+			  
+			  input.addEventListener("change", function (e) {
+				  const found = (e.target.value  == a.indexOf(right));
+
+				  document.getElementById("quizResult").textContent = found ? "Correct!" : "Incorrect";
+		  		  if (found) score++;
+		  		  document.getElementById("quizScore").textContent = score;
+				  document.querySelectorAll('input[type="radio"]').forEach(r => r.disabled = true);
+			  });
+		  }
+	  } 
+
+	  function constToName(n, l, m) {
+		  const found = orbitals.find(o => o.n === n && o.l === l && o.m === m);
+		  return found.name;
+	  }
+	  function fillSelect(){
+		  const select = document.getElementById('orbitalSelect');
+		  orbitals.forEach(o =>{
+			 const option = document.createElement("option");
+			 option.textContent=o.name;
+			 select.appendChild(option);
+		  });
+		  
+		select.addEventListener('change',function (e) {
+			const o = orbitals.find(o => o.name === e.target.value);
+			for (const x of ['n','l','m']){
+				document.getElementById(x).textContent=o[x];
+			}
+			updateWebGLUniforms(o.n,o.l,o.m);
+			document.getElementById('cartesianName').textContent=o.name;
+		});
+	  }
+	  function selectView(){
+		  const views = document.querySelectorAll('.selectview li');
+		  for (let i =1; i < 4; i++) {
+			  views[i].addEventListener('click', function(e) { updateView(i-1);});
+		  }
+		let planeSelect = document.getElementById('planeSelect');
+		planeSelect.addEventListener('change', function(e) {
+			updatePlane(e.target.value);
+		});
+	  }
+	  selectView();
+	  fillSelect();
+	   //all dropdowns
+
+
+	function menu(name) {
+		document.getElementById(name).classList.toggle("show"); //open dropdown
+	}
+	window.onclick = function(event) { //remove if click outside of dropdown
+		const isDropdownButton = event.target.matches('#mainmenu') || event.target.matches('#constmenu')
+		const isInsideDropdown = event.target.closest('.dropdownContent') !== null;
+		if (!isDropdownButton && !isInsideDropdown) {
+			var dropdowns = document.getElementsByClassName("dropdownContent");
+			var i;
+			for (i = 0; i < dropdowns.length; i++) {
+				var openDropdown = dropdowns[i];
+				if (openDropdown.classList.contains('show')) {
+					openDropdown.classList.remove('show');
+				}
+			}
+		}
+	}
+	 // main menu content selector
+	let mainmenu = document.getElementById('mainmenu');
+	mainmenu.addEventListener('click', (e) => {
+		if (mainmenu.classList.contains('closed')) {
+			mainmenu.classList.remove('closed');
+		} else {
+			mainmenu.classList.add('closed');
+		}
+	});
+	const options = document.querySelectorAll('.options li');
+	const results = document.querySelectorAll('.content div');
+	//document.getElementById('view').classList.add('active');
+	options.forEach(e => e.addEventListener('click', function(){
+		document.querySelector(".constants").classList.remove("hide");
+		results.forEach(f => f.classList.remove('active'))
+		document.getElementById(e.dataset.target).classList.add('active');
+
+		if (e.dataset.target === "view") { fillSelect();}
+		else if (e.dataset.target === "identify") { document.querySelector(".constants").classList.add("hide"); quiz();}
+	}))
+   </script>
+   <!--orbitals-->
+   <script>
+	//async function setup()
+	async function main() {
+		//camera
+		// allow to change camera position from button- 
+		let theta = 0.5, phi = 0.8, radius = 1.5;
+		const target = [0.5, 0.5, 0.5];
+		const up = [0, 1, 0];
+		const fov = 45 * Math.PI / 180;
+		//const max_r = 5.0; // if you need uMaxR -> add back in
+		// mouse
+		let isDragging = false;
+		let lastMouseX = 0;
+		let lastMouseY = 0;
+		const zoomSpeed = 0.1;
+		const v_rotation = 0.01, v_pan = 0.01;
+		// set up canvas & shaders
+		const canvas = document.querySelector("#gl-canvas");
+		const gl = canvas.getContext("webgl2");
+		if (!gl){
+			alert("no webGL");
+			return;
+		}
+		gl.clearColor(0.0,0.0,0.0,1.0);
+		gl.clear(gl.COLOR_BUFFER_BIT);
+		
+		//shaders
+		const vsSource = await fetch('vert.glsl').then(res => res.text());
+		const fsSource = await fetch('frag.glsl').then(res => res.text());
+		const program = initShaderProgram(gl, vsSource,fsSource);
+		gl.useProgram(program);
+		//getting uniforms
+		const uniforms = {
+			uC: gl.getUniformLocation(program, 'uC'),
+			uN: gl.getUniformLocation(program, 'uN'),
+			u_n: gl.getUniformLocation(program, 'u_n'),
+			u_l: gl.getUniformLocation(program, 'u_l'),
+			u_m: gl.getUniformLocation(program, 'u_m'),
+			ua0: gl.getUniformLocation(program, 'ua0'),
+			uDimensions: gl.getUniformLocation(program, 'uDimensions'),
+			uCam: gl.getUniformLocation(program, 'uCam'), //camera position
+			uTarget: gl.getUniformLocation(program, 'uTarget'), //middle of bounding box
+			uUp: gl.getUniformLocation(program,'uUp'),
+			uFov: gl.getUniformLocation(program,'uFov'),
+			uAspect: gl.getUniformLocation(program,'uAspect'),
+			uMaxR: gl.getUniformLocation(program,'uMaxR'),
+			uStepSf: gl.getUniformLocation(program,'uStepSf'),
+			uAxis: gl.getUniformLocation(program,'uAxis'),
+			uPlanePos: gl.getUniformLocation(program,'uPlanePos'),
+			uVolumePlaneSurface: gl.getUniformLocation(program,'uVolumePlaneSurface')
+		  };
+		window.webgl = { gl, uniforms };
+		//initial values 
+		let n = 2, l = 1, m = 0;
+		// setting uniforms start vals 
+		gl.uniform1f(uniforms.uC, C(n, l));
+		gl.uniform1f(uniforms.uN, P(l, m));
+		gl.uniform1i(uniforms.u_n, n);
+		gl.uniform1i(uniforms.u_l, l);
+		gl.uniform1i(uniforms.u_m, m);
+		gl.uniform1f(uniforms.ua0, 0.2);
+		gl.uniform3f(uniforms.uDimensions, 32, 32, 32);
+ 		gl.uniform1f(uniforms.uStepSf, 1);
+		gl.uniform3f(uniforms.uTarget, target[0], target[1], target[2]);
+		gl.uniform3f(uniforms.uUp, up[0], up[1], up[2]);
+		gl.uniform1f(uniforms.uFov, fov);
+		gl.uniform1f(uniforms.uMaxR, 3 + 0.5* n**2);
+		gl.uniform1f(uniforms.uAspect, canvas.width / canvas.height);
+		gl.uniform1i(uniforms.uAxis, 1);
+		gl.uniform1f(uniforms.uPlanePos, 0.5);
+		gl.uniform1i(uniforms.uVolumePlaneSurface, vps);
+
+		// mouse controls
+		let planePos = 0.5;
+		canvas.oncontextmenu = e => { e.preventDefault(); return false; };
+		canvas.addEventListener('mousedown', (e) => {
+			e.preventDefault(); //no context menu
+			if (e.button === 0 || e.button === 2) isDragging = true;
+			lastMouseX = e.clientX;
+			lastMouseY = e.clientY;
+
+		});
+		canvas.addEventListener('mousemove', (e) => {
+			if (!isDragging) return;
+			const dx = e.clientX - lastMouseX;
+			const dy = e.clientY - lastMouseY;
+			if (vps != 1 || e.buttons & 2) {
+				theta += dx*v_rotation;
+				phi += dy*v_rotation;
+				phi = Math.max(0.1,Math.min(Math.PI-0.1,phi)); //clamp 
+			}
+			else {
+				planePos += 1e-4 * (dx +dy);
+				planePos = Math.max(0.0, Math.min(1.0,planePos)); //clamp 0,1
+				gl.uniform1f(uniforms.uPlanePos,planePos);
+			}
+			lastMouseX = e.clientX;
+			lastMouseY = e.clientY;
+			requestAnimationFrame(render);
+		});
+		canvas.addEventListener('mouseup', (e) => {
+			isDragging = false;
+		});
+		canvas.addEventListener('wheel', (e) => { //zoom
+                	e.preventDefault();
+		        gl.clear(gl.COLOR_BUFFER_BIT);
+	                radius *= (1 + e.deltaY * 0.001 * zoomSpeed);
+	                radius = Math.max(2.0, Math.min(8.0, radius));
+	                requestAnimationFrame(render);
+            });
+		//replace later--------------------------
+		
+            // ---------- Full-screen quad ----------
+            const quadVertices = new Float32Array([
+                -1, -1,   1, -1,   1,  1,
+                -1, -1,   1,  1,  -1,  1
+            ]);
+            const vertexBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, quadVertices, gl.STATIC_DRAW);
+
+            const positionAttrib = 0;
+            gl.enableVertexAttribArray(positionAttrib);
+            gl.vertexAttribPointer(positionAttrib, 2, gl.FLOAT, false, 0, 0);
+
+            // ---------- Camera update ----------
+            function updateCamera() {
+                const camPos = [
+                    target[0] + radius * Math.sin(phi) * Math.cos(theta),
+                    target[1] + radius * Math.cos(phi),
+                    target[2] + radius * Math.sin(phi) * Math.sin(theta)
+                ];
+                gl.uniform3fv(uniforms.uCam, camPos);
+            }		
+	    function render() {
+		updateCamera();
+		gl.clear(gl.COLOR_BUFFER_BIT);
+		gl.drawArrays(gl.TRIANGLES,0,6); //6 vertices (2 triangles)		
+		requestAnimationFrame(render); //reqs itself to be queued to run again
+	}
+            updateCamera();
+	    render();
+		//getElement(n,l,m) & update params
+		//getting uniforms
+	}
+
+	function initShaderProgram(gl, vsSource, fsSource) { //find and add loadshader
+		const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
+		const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+		// Create the shader program
+
+		const shaderProgram = gl.createProgram();
+		gl.attachShader(shaderProgram, vertexShader);
+ 		gl.attachShader(shaderProgram, fragmentShader);
+		gl.linkProgram(shaderProgram);
+
+		// If creating the shader program failed, alert
+
+		if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+			alert(`Unable to initialize the shader program: ${gl.getProgramInfoLog(shaderProgram)}`);
+		    return null;
+		  }
+		return shaderProgram;
+		}
+
+	function loadShader(gl, type, source) {
+		const shader = gl.createShader(type);
+		gl.shaderSource(shader, source);
+		gl.compileShader(shader);
+
+	// See if it compiled successfully
+
+		if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+  			alert(`An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`);
+  			gl.deleteShader(shader);
+  			return null;
+		}
+
+		return shader
+	}
+
+	
+        const facts = [1];
+        for (let i = 1; i <= 50; i++) facts[i] = facts[i-1] * i; //precompute 1st 50 factorials
+
+	const a0 = 0.2; //scale according to n eventually..
+	function C(n,l) {
+		return (Math.sqrt( (2/(n*a0))**3) * facts[n-l-1] / (2*n*facts[n+l]));
+	}
+	function P(l,m){
+		const absM = Math.abs(m);
+		return(Math.sqrt(( (2*l+1) * facts[l-absM] )/ (4*Math.PI*facts[l+absM])));
+	}
+	//for interaction with the drop down
+	function updateWebGLUniforms(n, l, m) {
+			const { gl, uniforms } = window.webgl;
+			gl.uniform1f(uniforms.uC, C(n, l));
+			gl.uniform1f(uniforms.uN, P(l, m));
+			gl.uniform1i(uniforms.u_n, n);
+			gl.uniform1i(uniforms.u_l, l);
+			gl.uniform1i(uniforms.u_m, m);
+			gl.uniform1f(uniforms.uMaxR, 3 + 0.5 * n * n);
+	}
+
+	vps = 0;
+	function updateView(x) {
+		const {gl,uniforms} = window.webgl;
+		gl.uniform1i(uniforms.uVolumePlaneSurface, x);
+		vps =x;
+	}
+
+	function updatePlane(x) {
+		const {gl,uniforms} = window.webgl;
+		gl.uniform1i(uniforms.uAxis, x);
+	}
+	main();
+   </script>
+</html>
+
